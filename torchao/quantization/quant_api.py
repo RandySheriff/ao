@@ -809,7 +809,9 @@ class Int8DynamicActivationIntxWeightConfig(AOBaseConfig):
                     )
 
 
-def _int8_dynamic_activation_intx_weight_quantize_tensor(weight, bias, config):
+def _int8_dynamic_activation_intx_weight_quantize_tensor(
+    weight, bias, config, **kwargs
+):
     weight_dtype = config.weight_dtype
     weight_granularity = config.weight_granularity
     weight_mapping_type = config.weight_mapping_type
@@ -853,6 +855,7 @@ def _int8_dynamic_activation_intx_weight_quantize_tensor(weight, bias, config):
             weight_dtype,
             mapping_type=weight_mapping_type,
             activation_quantization="int8_asym_per_token",
+            **kwargs,
         )
         if weight_scale_dtype is not None and weight_scale_dtype != weight.dtype:
             _adjust_scale_dtype_in_intx_unpacked_tensor(
@@ -939,10 +942,15 @@ def _int8_dynamic_activation_intx_weight_quantize_tensor(weight, bias, config):
 
 @register_quantize_module_handler(Int8DynamicActivationIntxWeightConfig)
 def _int8_dynamic_activation_intx_weight_transform(
-    module: torch.nn.Module, config: Int8DynamicActivationIntxWeightConfig
+    module: torch.nn.Module,
+    config: Int8DynamicActivationIntxWeightConfig,
+    **kwargs,
 ) -> torch.nn.Module:
     new_weight, new_bias = _int8_dynamic_activation_intx_weight_quantize_tensor(
-        module.weight, module.bias, config
+        module.weight,
+        module.bias,
+        config,
+        **kwargs,
     )
     module.weight = torch.nn.Parameter(new_weight, requires_grad=False)
     if new_bias is None:
@@ -2177,7 +2185,7 @@ class IntxWeightOnlyConfig(AOBaseConfig):
         )
 
 
-def _intx_weight_only_quantize_tensor(weight, config):
+def _intx_weight_only_quantize_tensor(weight, config, **kwargs):
     weight_dtype = config.weight_dtype
     granularity = config.granularity
     mapping_type = config.mapping_type
@@ -2207,6 +2215,7 @@ def _intx_weight_only_quantize_tensor(weight, config):
                 block_size,
                 weight_dtype,
                 mapping_type=mapping_type,
+                **kwargs,
             )
             if scale_dtype is not None and scale_dtype != weight.dtype:
                 _adjust_scale_dtype_in_intx_unpacked_tensor(
@@ -2241,13 +2250,15 @@ def _intx_weight_only_quantize_tensor(weight, config):
 
 @register_quantize_module_handler(IntxWeightOnlyConfig)
 def _intx_weight_only_transform(
-    module: torch.nn.Module, config: IntxWeightOnlyConfig
+    module: torch.nn.Module,
+    config: IntxWeightOnlyConfig,
+    **kwargs,
 ) -> torch.nn.Module:
     assert hasattr(module, "weight"), (
         "applying intx weight only quant requires module to have weight attribute"
         + " but {module} does not have one"
     )
-    new_weight = _intx_weight_only_quantize_tensor(module.weight, config)
+    new_weight = _intx_weight_only_quantize_tensor(module.weight, config, **kwargs)
     module.weight = torch.nn.Parameter(new_weight, requires_grad=False)
 
     if isinstance(module, nn.Linear):

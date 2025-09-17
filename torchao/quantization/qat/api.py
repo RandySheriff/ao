@@ -21,6 +21,7 @@ from .embedding import FakeQuantizedEmbedding
 from .fake_quantize_config import (
     FakeQuantizeConfig,  # noqa: F401, for BC
     FakeQuantizeConfigBase,
+    IntxFakeQuantizeConfig,
     _infer_fake_quantize_configs,
 )
 from .linear import FakeQuantizedLinear
@@ -227,7 +228,16 @@ def _qat_config_transform(
         assert step == QATStep.CONVERT, "unexpected step '%s' in QATConfig" % step
         assert config.activation_config is None, "unexpected `activation_config`"
         assert config.weight_config is None, "unexpected `weight_config`"
+        kwargs = {}
         if isinstance(module, FakeQuantizedLinear):
+            # Optionally pass custom scales and zero points to base config handler
+            weight_config = module.weight_fake_quantizer.config
+            if (
+                isinstance(weight_config, IntxFakeQuantizeConfig)
+                and weight_config.range_learning
+            ):
+                kwargs["custom_scale"] = module.weight_fake_quantizer.scale
+                kwargs["custom_zero_point"] = module.weight_fake_quantizer.zero_point
             module = module.to_linear()
         elif isinstance(module, FakeQuantizedEmbedding):
             module = module.to_embedding()
@@ -235,7 +245,9 @@ def _qat_config_transform(
             # Unrelated module, ignore
             return module
         if base_config is not None:
-            return _QUANTIZE_CONFIG_HANDLER[type(base_config)](module, base_config)
+            return _QUANTIZE_CONFIG_HANDLER[type(base_config)](
+                module, base_config, **kwargs
+            )
         else:
             return module
 
